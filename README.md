@@ -2,7 +2,8 @@
 
 
 ## Results ##
-![plot](/Tables/occlusion-combined.png)
+![plot](/Tables/challenges-overall.png)
+![plot](/Tables/qualitative.png)
 ![plot](/Tables/Table1.png)
 ![plot](/Tables/Table2.png)
 ![plot](/Tables/Table3.png)
