@@ -2,7 +2,8 @@
 
 
 
-## Dataset ##
+## To Run Predictions ##
+### Dataset ###
   Step 1: Download dataset from: https://drive.google.com/drive/folders/16WkA2ZCFEWKxp2ArMcqRXo_fymLT1fGK <br>
   Step 2: Copy it in Project_Repository
 
