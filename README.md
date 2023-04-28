@@ -7,8 +7,14 @@
 ![plot](/Tables/Table1.png)
 ![plot](/Tables/Table2.png)
 ![plot](/Tables/Table3.png)
-## To Run Predictions ##
-  please execute below commands (Assuming all the dependencies are installed) <br>
+
+
+<h2> To Run Predictions </h2>
+  <h3> Dataset </h3>
+  Step 1: Download dataset from: https://drive.google.com/drive/folders/16WkA2ZCFEWKxp2ArMcqRXo_fymLT1fGK <br>
+  Step 2: Copy it in Project_Repository
+  <hr>
+  please execute below commands (Assuming all the dependencies are installed)
   <hr>
   -> python3 server.py <br>
   Alternatively pull the docker image from docker hub: docker pull vipin2113106/processing_server:current <br>
@@ -16,7 +22,5 @@
 
   python3 main.py
   
-### Dataset ###
-  Step 1: Download dataset from: https://drive.google.com/drive/folders/16WkA2ZCFEWKxp2ArMcqRXo_fymLT1fGK <br>
-  Step 2: Copy it in Project_Repository
+
 
