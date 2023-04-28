@@ -1,7 +1,8 @@
 # Realtime-Intelligent-Video-Processing-System #
 
 
-
+## Results ##
+![plot](/Tables/Table1.png)
 ## To Run Predictions ##
 ### Dataset ###
   Step 1: Download dataset from: https://drive.google.com/drive/folders/16WkA2ZCFEWKxp2ArMcqRXo_fymLT1fGK <br>
