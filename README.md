@@ -2,7 +2,6 @@
 
 
 ## Results ##
-![plot](/Tables/challenges-overall.png)
 ![plot](/Tables/occlusion-combined.png)
 ![plot](/Tables/Table1.png)
 ![plot](/Tables/Table2.png)
