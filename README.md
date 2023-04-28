@@ -9,7 +9,7 @@
 ![plot](/Tables/Table3.png)
 ## To Run Predictions ##
   please execute below commands (Assuming all the dependencies are installed) <br>
-  python3 server.py 
+  python3 server.py <br>
   python3 main.py
   
 ### Dataset ###
