@@ -15,11 +15,10 @@
   Step 2: Copy it in Project_Repository
   <hr>
   <h3> Execute below commands (Assuming all the dependencies are installed) </h3>
-  -> python3 server.py <br>
+  Server:  python3 server.py <br>
   Alternatively pull the docker image from docker hub: docker pull vipin2113106/processing_server:current <br>
   -> And move the server.py file inside docker hub <b3>
-
-  python3 main.py
+  Server:  python3 main.py
   
 
 
