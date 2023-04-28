@@ -21,7 +21,7 @@ import urllib
 
 
 cam_recommender = camera_Recommender()
-meta_extractor = VideoMetadataExtractor('/home/vipin/projects/IVP-System/urls.txt')
+meta_extractor = VideoMetadataExtractor('urls.txt')
 target_gps_data = []
 
 class YOLO:
@@ -150,7 +150,7 @@ class CameraWidget(QWidget):
     def __init__(self, width, height, stream_link=0, id = None, aspect_ratio=False, parent=None, deque_size=1):
         super(CameraWidget, self).__init__(parent)
         # Initialize deque used to store frames read from the stream
-        self.results_path = '/home/vipin/projects/IVP-System/results/'
+        self.results_path = '/results/'
         self.suspect_data = []
         self.prev_frame_time = 0
         self.new_frame_time = 0
@@ -451,7 +451,7 @@ if __name__ == '__main__':
     app = QApplication([])
     window = MainWindow()
 
-    with open('/home/vipin/projects/AlignedReID (copy)/urls.txt', 'r') as f:
+    with open('urls.txt', 'r') as f:
         urls = f.readlines()
     urls = [url.strip() for url in urls]
 
@@ -470,4 +470,4 @@ if __name__ == '__main__':
     # saving trajectory map..
 
     if len(target_gps_data) != 0:
-        meta_extractor.save_trajectory_map(target_gps_data, '/home/vipin/projects/IVP-System/results/trajectory_map')
+        meta_extractor.save_trajectory_map(target_gps_data, '/results/trajectory_map')
