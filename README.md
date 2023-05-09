@@ -1,4 +1,4 @@
-# Realtime-Intelligent-Video-Processing-System #
+# YOLORe-IDNet: An Efficient Multi-Camera System for Person-Tracking #
 
 
 ## Results ##
