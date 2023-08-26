@@ -21,8 +21,8 @@
   <b>Client</b>   python3 main.py
   
 ## Try out our MCPT dataset ##
-  <p>https://www.kaggle.com/dsv/6369817</p>
-  <p>Please cite us</p>
+Visit -> https://www.kaggle.com/dsv/6369817
+
   
 
 
