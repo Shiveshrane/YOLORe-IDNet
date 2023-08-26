@@ -1,5 +1,5 @@
 # YOLORe-IDNet: An Efficient Multi-Camera System for Person-Tracking #
-
+![plot](/Tables/system-design-1.png)
 
 ## Results ##
 ![plot](/Tables/challenges-overall.png)
@@ -7,7 +7,7 @@
 ![plot](/Tables/tab1.png)
 ![plot](/Tables/Tab2.png)
 ![plot](/Tables/Tab3.png)
-![plot](/Tables/system-design-1.png)
+
 
 <h2> To Run System </h2>
   <h3> Dataset </h3>
