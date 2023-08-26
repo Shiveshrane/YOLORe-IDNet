@@ -7,7 +7,7 @@
 ![plot](/Tables/tab1.png)
 ![plot](/Tables/Tab2.png)
 ![plot](/Tables/Tab3.png)
-
+![plot](/Tables/system-design-1.png)
 
 <h2> To Run System </h2>
   <h3> Dataset </h3>
