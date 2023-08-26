@@ -4,9 +4,9 @@
 ## Results ##
 ![plot](/Tables/challenges-overall.png)
 ![plot](/Tables/qualitative.png)
-![plot](/Tables/Table1.png)
-![plot](/Tables/Table2.png)
-![plot](/Tables/Table3.png)
+![plot](/Tables/tab1.png)
+![plot](/Tables/Tab2.png)
+![plot](/Tables/Tab3.png)
 
 
 <h2> To Run System </h2>
