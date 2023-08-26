@@ -9,7 +9,7 @@
 ![plot](/Tables/Tab3.png)
 
 
-<h2> To Run System </h2>
+## To Run System ##
   <h3> Dataset </h3>
   Step 1: Download dataset from: https://drive.google.com/drive/folders/16WkA2ZCFEWKxp2ArMcqRXo_fymLT1fGK <br>
   Step 2: Copy it in Project_Repository
@@ -20,15 +20,9 @@
   -> And move the server.py file inside docker hub <br>
   <b>Client</b>   python3 main.py
   
-<h2> Try out our MCPT dataset </h2>
+## Try out our MCPT dataset ##
   <p>https://www.kaggle.com/dsv/6369817</p>
   <p>Please cite us</p>
-  ```ruby
-  @misc{vipin gautam_shitala prasad_sharad sinha_2023,
-	title={MCPT-dataset},
-	url={https://www.kaggle.com/dsv/6369817},
-	DOI={10.34740/KAGGLE/DSV/6369817},
-	publisher={Kaggle},
-	author={Vipin Gautam and Shitala Prasad and Sharad Sinha},
-	year={2023}}
- ```
+  
+
+
