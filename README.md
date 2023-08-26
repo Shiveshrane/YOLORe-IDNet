@@ -1,14 +1,6 @@
 # YOLORe-IDNet: An Efficient Multi-Camera System for Person-Tracking #
 ![plot](/Tables/system-design-1.png)
 
-## Results ##
-![plot](/Tables/challenges-overall.png)
-![plot](/Tables/qualitative.png)
-![plot](/Tables/tab1.png)
-![plot](/Tables/Tab2.png)
-![plot](/Tables/Tab3.png)
-
-
 ## Have a try ##
   Step 1: Download dataset from: https://www.kaggle.com/dsv/6369817 <br>
   Step 2: Copy it into Project_Repository <br>
@@ -29,6 +21,17 @@ Visit -> https://www.kaggle.com/dsv/6369817
 	author={Vipin Gautam and Shitala Prasad and Sharad Sinha},
 	year={2023}}
 ```
+
+
+## Results ##
+![plot](/Tables/challenges-overall.png)
+![plot](/Tables/qualitative.png)
+![plot](/Tables/tab1.png)
+![plot](/Tables/Tab2.png)
+![plot](/Tables/Tab3.png)
+
+
+
   
 
 
