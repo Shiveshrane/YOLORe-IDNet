@@ -21,9 +21,9 @@
   <b>Client</b>   python3 main.py
   
 <h2> Try out our MCPT dataset </h2>
-  <h3>https://www.kaggle.com/dsv/6369817</h3>
+  <p>https://www.kaggle.com/dsv/6369817</p>
   <p>Please cite us</p>
-  ```
+  ```ruby
   @misc{vipin gautam_shitala prasad_sharad sinha_2023,
 	title={MCPT-dataset},
 	url={https://www.kaggle.com/dsv/6369817},
