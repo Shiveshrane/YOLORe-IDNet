@@ -20,5 +20,16 @@
   -> And move the server.py file inside docker hub <br>
   <b>Client</b>   python3 main.py
   
-
-
+<h2> Try out our MCPT dataset </h2>
+  <h3>https://www.kaggle.com/dsv/6369817</h3>
+  <p>Please cite us</p>
+  <p>
+    @misc{vipin gautam_shitala prasad_sharad sinha_2023,
+	title={MCPT-dataset},
+	url={https://www.kaggle.com/dsv/6369817},
+	DOI={10.34740/KAGGLE/DSV/6369817},
+	publisher={Kaggle},
+	author={Vipin Gautam and Shitala Prasad and Sharad Sinha},
+	year={2023}
+}
+  </p>
