@@ -43,26 +43,41 @@ class CLIPPersonIdentifier:
     
     def add_target_description(self, target_id: int, description: str):
         """
-        Add a target description and cache its embedding
+        Add a target description and cache its embedding with enhanced variations
         
         Args:
             target_id: Unique identifier for the target
             description: Text description of the target
         """
-        # Preprocess and encode text
-        inputs = self.processor(text=[description], return_tensors="pt", padding=True).to(self.device)
+        # Create multiple description variations for better matching
+        descriptions = [
+            description,
+            f"a person {description}",
+            f"someone {description}",
+            f"a human {description}"
+        ]
         
-        with torch.no_grad():
-            text_features = self.model.get_text_features(**inputs)
-            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+        embeddings = []
+        for desc in descriptions:
+            # Preprocess and encode text
+            inputs = self.processor(text=[desc], return_tensors="pt", padding=True).to(self.device)
+            
+            with torch.no_grad():
+                text_features = self.model.get_text_features(**inputs)
+                text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+                embeddings.append(text_features.cpu())
+        
+        # Average embeddings for robustness
+        avg_embedding = torch.mean(torch.stack(embeddings), dim=0)
         
         self.target_embeddings_cache[target_id] = {
             'description': description,
-            'embedding': text_features.cpu(),
-            'matches_found': 0
+            'embedding': avg_embedding,
+            'matches_found': 0,
+            'variations': descriptions
         }
         
-        self.logger.info(f"Added target {target_id}: '{description}'")
+        self.logger.info(f"Added target {target_id}: '{description}' with {len(descriptions)} variations")
     
     def remove_target_description(self, target_id: int):
         """Remove a target description from cache"""
@@ -126,7 +141,7 @@ class CLIPPersonIdentifier:
         return best_match
     
     def _extract_person_crop(self, frame: np.ndarray, bbox: List[int]) -> Optional[Image.Image]:
-        """Extract person crop from frame given bounding box"""
+        """Extract person crop from frame given bounding box with enhanced preprocessing"""
         try:
             x1, y1, x2, y2 = map(int, bbox)
             
@@ -135,13 +150,30 @@ class CLIPPersonIdentifier:
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x2), min(h, y2)
             
-            # Extract person crop
-            person_crop = frame[y1:y2, x1:x2]
+            # Add padding to include more context - improves CLIP performance
+            padding = 0.15  # 15% padding
+            bbox_w, bbox_h = x2 - x1, y2 - y1
+            pad_x = int(bbox_w * padding)
+            pad_y = int(bbox_h * padding)
+            
+            # Apply padding with bounds checking
+            x1_pad = max(0, x1 - pad_x)
+            y1_pad = max(0, y1 - pad_y)
+            x2_pad = min(w, x2 + pad_x)
+            y2_pad = min(h, y2 + pad_y)
+            
+            # Extract person crop with padding
+            person_crop = frame[y1_pad:y2_pad, x1_pad:x2_pad]
             
             if person_crop.size > 0:
                 # Convert BGR to RGB and create PIL Image
                 person_crop_rgb = cv2.cvtColor(person_crop, cv2.COLOR_BGR2RGB)
-                return Image.fromarray(person_crop_rgb)
+                pil_image = Image.fromarray(person_crop_rgb)
+                
+                # Resize to optimal size for CLIP (improves performance)
+                pil_image = pil_image.resize((224, 224), Image.Resampling.LANCZOS)
+                
+                return pil_image
             
             return None
             
