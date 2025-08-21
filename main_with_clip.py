@@ -33,9 +33,9 @@ target_gps_data = []
 
 class CLIPControlWidget(QWidget):
     """
-    Widget for CLIP-based text selection controls
+    Widget for Multi-Target CLIP-based text selection controls
     """
-    text_query_changed = pyqtSignal(str)
+    targets_updated = pyqtSignal()
     clip_mode_toggled = pyqtSignal(bool)
     preview_requested = pyqtSignal()
     
@@ -43,47 +43,86 @@ class CLIPControlWidget(QWidget):
         super().__init__(parent)
         self.setup_ui()
         self.server_url = 'http://127.0.0.1:5000'
+        self.tracked_targets = {}
         
     def setup_ui(self):
         layout = QVBoxLayout()
         
-        # CLIP Mode Group
-        clip_group = QGroupBox("CLIP Text-Based Selection")
+        # Multi-Target CLIP Mode Group
+        clip_group = QGroupBox("Multi-Target CLIP Tracking")
         clip_layout = QVBoxLayout()
         
         # Enable/Disable CLIP
-        self.clip_enabled = QCheckBox("Enable CLIP Mode")
+        self.clip_enabled = QCheckBox("Enable Multi-Target CLIP Mode")
         self.clip_enabled.toggled.connect(self.on_clip_mode_toggled)
         clip_layout.addWidget(self.clip_enabled)
         
+        # Add new target section
+        add_target_group = QGroupBox("Add New Target")
+        add_layout = QVBoxLayout()
+        
+        # Target name input
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Target Name:"))
+        self.target_name_input = QLineEdit()
+        self.target_name_input.setPlaceholderText("e.g., 'Person A', 'Suspect 1'")
+        name_layout.addWidget(self.target_name_input)
+        add_layout.addLayout(name_layout)
+        
         # Text query input
         query_layout = QHBoxLayout()
-        query_layout.addWidget(QLabel("Describe person:"))
+        query_layout.addWidget(QLabel("Description:"))
         self.text_input = QLineEdit()
         self.text_input.setPlaceholderText("e.g., 'person wearing red shirt and blue jeans'")
-        self.text_input.textChanged.connect(self.on_text_changed)
-        self.text_input.returnPressed.connect(self.on_set_query)
+        self.text_input.returnPressed.connect(self.on_add_target)
         query_layout.addWidget(self.text_input)
         
-        self.set_query_btn = QPushButton("Set Query")
-        self.set_query_btn.clicked.connect(self.on_set_query)
-        query_layout.addWidget(self.set_query_btn)
+        self.add_target_btn = QPushButton("Add Target")
+        self.add_target_btn.clicked.connect(self.on_add_target)
+        query_layout.addWidget(self.add_target_btn)
         
-        clip_layout.addLayout(query_layout)
+        add_layout.addLayout(query_layout)
+        add_target_group.setLayout(add_layout)
+        clip_layout.addWidget(add_target_group)
+        
+        # Targets list
+        targets_group = QGroupBox("Active Targets")
+        targets_layout = QVBoxLayout()
+        
+        # Targets list widget
+        self.targets_list = QTextEdit()
+        self.targets_list.setMaximumHeight(150)
+        self.targets_list.setReadOnly(True)
+        targets_layout.addWidget(self.targets_list)
+        
+        # Target management buttons
+        target_buttons_layout = QHBoxLayout()
+        
+        self.refresh_targets_btn = QPushButton("Refresh Targets")
+        self.refresh_targets_btn.clicked.connect(self.refresh_targets)
+        target_buttons_layout.addWidget(self.refresh_targets_btn)
+        
+        self.clear_all_btn = QPushButton("Clear All Targets")
+        self.clear_all_btn.clicked.connect(self.clear_all_targets)
+        target_buttons_layout.addWidget(self.clear_all_btn)
+        
+        targets_layout.addLayout(target_buttons_layout)
+        targets_group.setLayout(targets_layout)
+        clip_layout.addWidget(targets_group)
         
         # Preview button
-        self.preview_btn = QPushButton("Preview Matches")
+        self.preview_btn = QPushButton("Preview All Matches")
         self.preview_btn.clicked.connect(self.on_preview_matches)
         clip_layout.addWidget(self.preview_btn)
         
         # Status display
-        self.status_label = QLabel("CLIP Mode: Disabled")
+        self.status_label = QLabel("Multi-Target CLIP Mode: Disabled")
         self.status_label.setStyleSheet("color: red; font-weight: bold;")
         clip_layout.addWidget(self.status_label)
         
         # Confidence threshold
         threshold_layout = QHBoxLayout()
-        threshold_layout.addWidget(QLabel("Confidence Threshold:"))
+        threshold_layout.addWidget(QLabel("CLIP Confidence Threshold:"))
         self.threshold_slider = QSlider(Qt.Horizontal)
         self.threshold_slider.setRange(10, 50)
         self.threshold_slider.setValue(20)
@@ -100,13 +139,15 @@ class CLIPControlWidget(QWidget):
         
         # Instructions
         instructions = QTextEdit()
-        instructions.setMaximumHeight(100)
+        instructions.setMaximumHeight(120)
         instructions.setPlainText(
-            "CLIP Instructions:\n"
-            "1. Enable CLIP mode\n"
-            "2. Describe the target person in natural language\n"
-            "3. Click 'Set Query' or press Enter\n"
-            "4. The system will automatically select the best matching person"
+            "Entity Identification & Tracking Instructions:\n"
+            "1. Enable Multi-Target CLIP mode\n"
+            "2. Add targets with descriptions (e.g., 'woman in red dress')\n"
+            "3. CLIP identifies new entities matching descriptions\n"
+            "4. System automatically switches to ReID for tracking\n"
+            "5. CLIP re-activates if targets are lost\n"
+            "6. View real-time status of all targets"
         )
         instructions.setReadOnly(True)
         layout.addWidget(instructions)
@@ -118,55 +159,143 @@ class CLIPControlWidget(QWidget):
     
     def set_controls_enabled(self, enabled):
         """Enable/disable CLIP controls"""
+        self.target_name_input.setEnabled(enabled)
         self.text_input.setEnabled(enabled)
-        self.set_query_btn.setEnabled(enabled)
+        self.add_target_btn.setEnabled(enabled)
         self.preview_btn.setEnabled(enabled)
         self.threshold_slider.setEnabled(enabled)
+        self.refresh_targets_btn.setEnabled(enabled)
+        self.clear_all_btn.setEnabled(enabled)
     
     def on_clip_mode_toggled(self, checked):
         """Handle CLIP mode toggle"""
         self.set_controls_enabled(checked)
         
         if checked:
-            self.status_label.setText("CLIP Mode: Enabled")
+            self.status_label.setText("Multi-Target CLIP Mode: Enabled")
             self.status_label.setStyleSheet("color: green; font-weight: bold;")
+            self.refresh_targets()
         else:
-            self.status_label.setText("CLIP Mode: Disabled")
+            self.status_label.setText("Multi-Target CLIP Mode: Disabled")
             self.status_label.setStyleSheet("color: red; font-weight: bold;")
             self.disable_clip_mode()
         
         self.clip_mode_toggled.emit(checked)
-    
-    def on_text_changed(self, text):
-        """Handle text input changes"""
-        self.text_query_changed.emit(text)
     
     def on_threshold_changed(self, value):
         """Handle threshold slider changes"""
         threshold = value / 100.0
         self.threshold_label.setText(f"{threshold:.2f}")
     
-    def on_set_query(self):
-        """Set text query on server"""
+    def on_add_target(self):
+        """Add a new target"""
+        target_name = self.target_name_input.text().strip()
         text_query = self.text_input.text().strip()
+        
+        if not target_name:
+            target_name = f"Target_{len(self.tracked_targets) + 1}"
+        
         if not text_query:
-            self.status_label.setText("Error: Empty query")
+            self.status_label.setText("Error: Empty description")
             self.status_label.setStyleSheet("color: red; font-weight: bold;")
             return
         
         try:
-            response = requests.post(f"{self.server_url}/set_text_query", 
-                                   json={'text_query': text_query})
+            response = requests.post(f"{self.server_url}/add_target", 
+                                   json={
+                                       'target_name': target_name,
+                                       'text_query': text_query
+                                   })
             
             if response.status_code == 200:
-                self.status_label.setText(f"Query set: {text_query[:30]}...")
+                data = response.json()
+                target_id = data['target_id']
+                
+                self.tracked_targets[target_id] = {
+                    'name': target_name,
+                    'query': text_query,
+                    'status': 'searching'
+                }
+                
+                self.status_label.setText(f"Added target: {target_name}")
                 self.status_label.setStyleSheet("color: blue; font-weight: bold;")
+                
+                # Clear inputs
+                self.target_name_input.clear()
+                self.text_input.clear()
+                
+                # Refresh display
+                self.refresh_targets()
+                
             else:
-                self.status_label.setText("Error setting query")
+                self.status_label.setText("Error adding target")
                 self.status_label.setStyleSheet("color: red; font-weight: bold;")
                 
         except Exception as e:
             self.status_label.setText(f"Connection error: {str(e)[:20]}...")
+            self.status_label.setStyleSheet("color: red; font-weight: bold;")
+    
+    def refresh_targets(self):
+        """Refresh targets list from server"""
+        try:
+            response = requests.get(f"{self.server_url}/get_targets")
+            
+            if response.status_code == 200:
+                data = response.json()
+                targets = data['targets']
+                
+                # Update local tracking
+                self.tracked_targets.clear()
+                for target in targets:
+                    self.tracked_targets[target['target_id']] = {
+                        'name': target['name'],
+                        'query': target['text_query'],
+                        'status': target['status'],
+                        'confidence': target.get('confidence', 0.0)
+                    }
+                
+                # Update display
+                self.update_targets_display()
+                
+                self.targets_updated.emit()
+                
+        except Exception as e:
+            print(f"Error refreshing targets: {e}")
+    
+    def update_targets_display(self):
+        """Update the targets list display"""
+        if not self.tracked_targets:
+            self.targets_list.setPlainText("No targets added yet.")
+            return
+        
+        display_text = ""
+        for target_id, target_data in self.tracked_targets.items():
+            status_color = {
+                'searching': '🔍',
+                'tracking': '🎯',
+                'lost': '❌'
+            }.get(target_data['status'], '❓')
+            
+            confidence = target_data.get('confidence', 0.0)
+            confidence_str = f" ({confidence:.2f})" if confidence > 0 else ""
+            
+            display_text += f"{status_color} {target_data['name']}: {target_data['query'][:40]}{'...' if len(target_data['query']) > 40 else ''}{confidence_str}\n"
+        
+        self.targets_list.setPlainText(display_text.strip())
+    
+    def clear_all_targets(self):
+        """Clear all targets"""
+        try:
+            response = requests.post(f"{self.server_url}/clear_all_targets")
+            
+            if response.status_code == 200:
+                self.tracked_targets.clear()
+                self.update_targets_display()
+                self.status_label.setText("All targets cleared")
+                self.status_label.setStyleSheet("color: blue; font-weight: bold;")
+                
+        except Exception as e:
+            self.status_label.setText(f"Error clearing targets: {str(e)[:20]}...")
             self.status_label.setStyleSheet("color: red; font-weight: bold;")
     
     def on_preview_matches(self):
@@ -176,12 +305,15 @@ class CLIPControlWidget(QWidget):
     def disable_clip_mode(self):
         """Disable CLIP mode on server"""
         try:
-            requests.post(f"{self.server_url}/disable_clip_mode")
+            response = requests.post(f"{self.server_url}/disable_clip_mode")
+            if response.status_code == 200:
+                self.tracked_targets.clear()
+                self.update_targets_display()
         except:
             pass
 
 class EnhancedYOLO:
-    """Enhanced YOLO class with CLIP integration"""
+    """Enhanced YOLO class with CLIP entity identification"""
     
     def __init__(self, url='http://127.0.0.1:5000/predict'):
         self.url = url
@@ -195,12 +327,10 @@ class EnhancedYOLO:
         self.current_cam_id = None
         self.image = None
         self.clip_mode = False
-        self.current_text_query = None
     
-    def set_clip_mode(self, enabled, text_query=None):
-        """Set CLIP mode state"""
+    def set_clip_mode(self, enabled):
+        """Set CLIP mode state (simplified since targets are managed server-side)"""
         self.clip_mode = enabled
-        self.current_text_query = text_query
     
     def scale_bbox(self, bbox, original_size, resized_size):
         """Scale bounding box coordinates"""
@@ -219,7 +349,7 @@ class EnhancedYOLO:
         return x, y, w, h
     
     def predict(self, suspect_img_encoded=None, suspect_feature1_encoded=None):
-        """Enhanced prediction with CLIP support"""
+        """Enhanced prediction with entity identification support"""
         if self.encoded_img is None:
             return None, None
         
@@ -238,27 +368,10 @@ class EnhancedYOLO:
             json_response = self.session.post(self.url, json=request_data)
             json_data = json_response.json()
             
-            # Handle CLIP selection response
-            if json_data.get('clip_selection'):
-                selected_person = json_data.get('selected_person', {})
+            # Handle entity identification tracking response
+            if json_data.get('entity_identification_tracking'):
                 self.do_ReID = json_data.get('ReidStatus', False)
-                
-                if selected_person:
-                    bbox = selected_person['bbox']
-                    similarity_score = selected_person.get('similarity_score', 0)
-                    
-                    # Convert to expected format
-                    self.camId = self.current_cam_id
-                    self.new_bounding_box_cord = bbox
-                    
-                    status = 'clip_selection'
-                    data = {
-                        'bbox': bbox,
-                        'similarity_score': similarity_score,
-                        'text_query': selected_person.get('text_query', ''),
-                        'message': json_data.get('message', '')
-                    }
-                    return status, data
+                return 'entity_identification_tracking', json_data
             
             # Handle regular detection response
             elif 'detections' in json_data:
@@ -335,10 +448,10 @@ class EnhancedCameraWidget(QWidget):
         self.online = False
         self.capture = None
         
-        # CLIP-related attributes
+        # Multi-target CLIP-related attributes
         self.clip_mode = False
-        self.current_text_query = None
-        self.last_clip_selection = None
+        self.tracked_targets = {}
+        self.last_detections = []
         
         # UI setup
         self.video_frame = QtWidgets.QLabel()
@@ -356,14 +469,18 @@ class EnhancedCameraWidget(QWidget):
         
         print(f'Started camera: {self.camera_stream_link}')
     
-    def set_clip_mode(self, enabled, text_query=None):
+    def set_clip_mode(self, enabled, targets=None):
         """Set CLIP mode for this camera"""
         self.clip_mode = enabled
-        self.current_text_query = text_query
-        self.yolo.set_clip_mode(enabled, text_query)
+        if targets:
+            self.tracked_targets = targets
+        else:
+            self.tracked_targets = {}
+        
+        self.yolo.set_clip_mode(enabled)
         
         if enabled:
-            print(f"CLIP mode enabled for camera {self.frame_id}: '{text_query}'")
+            print(f"Multi-target CLIP mode enabled for camera {self.frame_id}: {len(self.tracked_targets)} targets")
         else:
             print(f"CLIP mode disabled for camera {self.frame_id}")
     
@@ -420,21 +537,23 @@ class EnhancedCameraWidget(QWidget):
             self.yolo.encoded_img = base64.b64encode(buffer).decode()
             self.yolo.current_cam_id = self.frame_id
             
-            # Process with YOLO (including CLIP if enabled)
+            # Process with YOLO (including multi-target CLIP if enabled)
             if self.start_detection:
                 status, data = self.yolo.predict(
                     self.suspect_img_encoded, 
                     self.suspect_feature1_encoded
                 )
                 
-                if status == 'clip_selection':
-                    self.handle_clip_selection(data)
+                if status == 'entity_identification_tracking':
+                    self.handle_entity_identification_tracking(data)
                 elif status == 'show_box':
                     self.draw_detections(frame, data)
                 elif status == 'reid':
                     self.handle_reid_mode(frame)
                 elif status == 'error':
                     print(f"Detection error: {data}")
+                
+                self.last_detections = data if isinstance(data, list) else []
             
             # Display frame
             self.display_frame(frame)
@@ -442,9 +561,74 @@ class EnhancedCameraWidget(QWidget):
         except Exception as e:
             print(f"Error in set_frame: {e}")
     
+    def handle_entity_identification_tracking(self, data):
+        """Handle entity identification and tracking results"""
+        if not data or not data.get('matched_targets'):
+            return
+        
+        matched_targets = data['matched_targets']
+        new_entities = data.get('new_entities_found', 0)
+        total_targets = data.get('active_targets', 0)
+        
+        print(f"Camera {self.frame_id}: Tracking {len(matched_targets)}/{total_targets} targets ({new_entities} newly identified)")
+        
+        # Draw all matched targets on frame
+        if self.cv_frame is not None:
+            # Add header info
+            header_text = f"Entity Tracking: {len(matched_targets)}/{total_targets} targets"
+            if new_entities > 0:
+                header_text += f" ({new_entities} new via CLIP)"
+            cv2.putText(self.cv_frame, header_text, (10, 25), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            
+            # Colors for different targets
+            colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0), 
+                     (255, 0, 255), (0, 255, 255), (128, 255, 128), (255, 128, 128)]
+            
+            for i, target in enumerate(matched_targets):
+                bbox = target['bbox']
+                target_name = target['target_name']
+                target_id = target['target_id']
+                tracking_method = target.get('tracking_method', 'unknown')
+                
+                # Choose color based on tracking method
+                if tracking_method == 'clip_initial':
+                    color = (0, 255, 0)  # Green for newly identified via CLIP
+                elif tracking_method == 'reid_tracking':
+                    color = (255, 0, 0)  # Blue for ReID tracking
+                else:
+                    color = colors[i % len(colors)]
+                
+                # Draw bounding box
+                x1, y1, x2, y2 = map(int, bbox)
+                cv2.rectangle(self.cv_frame, (x1, y1), (x2, y2), color, 3)
+                
+                # Prepare label based on tracking method
+                if tracking_method == 'clip_initial':
+                    score = target.get('similarity_score', 0.0)
+                    label = f"{target_name} (CLIP: {score:.2f})"
+                elif tracking_method == 'reid_tracking':
+                    score = target.get('reid_score', 0.0)
+                    label = f"{target_name} (ReID: {score:.2f})"
+                else:
+                    confidence = target.get('confidence', 0.0)
+                    label = f"{target_name} ({confidence:.2f})"
+                
+                # Label background
+                label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                cv2.rectangle(self.cv_frame, (x1, y1-25), (x1+label_size[0], y1), color, -1)
+                
+                # Label text
+                cv2.putText(self.cv_frame, label, (x1, y1-8), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+                
+                # Add status indicator
+                status_text = "NEW" if tracking_method == 'clip_initial' else "TRACKING"
+                cv2.putText(self.cv_frame, status_text, (x1, y2+15), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+    
     def handle_clip_selection(self, data):
-        """Handle CLIP-based person selection"""
-        self.last_clip_selection = data
+        """Handle CLIP-based person selection (legacy - kept for compatibility)"""
         bbox = data['bbox']
         similarity_score = data['similarity_score']
         text_query = data['text_query']
@@ -482,7 +666,7 @@ class EnhancedCameraWidget(QWidget):
     def handle_reid_mode(self, frame):
         """Handle ReID tracking mode"""
         # Add ReID tracking visualization
-        cv2.putText(frame, "ReID Tracking Active", (10, 60), 
+        cv2.putText(frame, "Multi-Target ReID Tracking Active", (10, 60), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
     
     def display_frame(self, frame):

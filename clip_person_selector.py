@@ -1,62 +1,136 @@
 """
-CLIP-based Person Selector for YOLORe-IDNet
-Enables text-based person selection instead of manual bounding box assignment
+CLIP-based Person Identifier for YOLORe-IDNet
+Uses CLIP as initial identifier for new entities, then hands off to ReID tracking
 """
 
 import torch
-import clip
+from transformers import CLIPProcessor, CLIPModel
 import cv2
 import numpy as np
 from PIL import Image
-import torchvision.transforms as transforms
 from typing import List, Tuple, Optional, Dict
 import logging
 
-class CLIPPersonSelector:
+class CLIPPersonIdentifier:
     """
-    CLIP-based person selector that identifies persons based on textual descriptions
+    CLIP-based person identifier for initial entity recognition
+    Uses CLIP only when new people enter the scene to check if they match target descriptions
     """
     
-    def __init__(self, device: str = None):
+    def __init__(self, device: str = None, model_name: str = "openai/clip-vit-base-patch32"):
         """
-        Initialize CLIP model for person selection
+        Initialize CLIP model for person identification
         
         Args:
             device: Device to run CLIP on ('cuda' or 'cpu')
+            model_name: Hugging Face model name for CLIP
         """
         self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
-        self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
+        
+        # Load CLIP model and processor from transformers
+        self.model = CLIPModel.from_pretrained(model_name).to(self.device)
+        self.processor = CLIPProcessor.from_pretrained(model_name)
         self.model.eval()
         
         # Setup logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
         
-        self.logger.info(f"CLIP model loaded on {self.device}")
+        self.logger.info(f"CLIP model {model_name} loaded on {self.device}")
+        
+        # Cache for target descriptions to avoid re-encoding
+        self.target_embeddings_cache = {}
     
-    def preprocess_detections(self, frame: np.ndarray, detections: List[Dict]) -> List[Image.Image]:
+    def add_target_description(self, target_id: int, description: str):
         """
-        Extract person crops from frame based on YOLO detections
+        Add a target description and cache its embedding
+        
+        Args:
+            target_id: Unique identifier for the target
+            description: Text description of the target
+        """
+        # Preprocess and encode text
+        inputs = self.processor(text=[description], return_tensors="pt", padding=True).to(self.device)
+        
+        with torch.no_grad():
+            text_features = self.model.get_text_features(**inputs)
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+        
+        self.target_embeddings_cache[target_id] = {
+            'description': description,
+            'embedding': text_features.cpu(),
+            'matches_found': 0
+        }
+        
+        self.logger.info(f"Added target {target_id}: '{description}'")
+    
+    def remove_target_description(self, target_id: int):
+        """Remove a target description from cache"""
+        if target_id in self.target_embeddings_cache:
+            desc = self.target_embeddings_cache[target_id]['description']
+            del self.target_embeddings_cache[target_id]
+            self.logger.info(f"Removed target {target_id}: '{desc}'")
+    
+    def clear_all_targets(self):
+        """Clear all target descriptions"""
+        count = len(self.target_embeddings_cache)
+        self.target_embeddings_cache.clear()
+        self.logger.info(f"Cleared {count} target descriptions")
+    
+    def identify_new_person(self, frame: np.ndarray, person_bbox: List[int], 
+                           confidence_threshold: float = 0.25) -> Optional[Tuple[int, float, str]]:
+        """
+        Identify if a new person matches any of the target descriptions
+        This is the main method called when a new person enters the scene
         
         Args:
             frame: Input frame (BGR format)
-            detections: List of detection dictionaries with bbox coordinates
+            person_bbox: Bounding box [x1, y1, x2, y2] of the detected person
+            confidence_threshold: Minimum similarity score to consider a match
             
         Returns:
-            List of PIL Images containing person crops
+            Tuple of (target_id, similarity_score, description) if match found, None otherwise
         """
-        person_crops = []
+        if not self.target_embeddings_cache:
+            return None
         
-        for detection in detections:
-            # Extract bounding box coordinates
-            if 'bbox' in detection:
-                x1, y1, x2, y2 = detection['bbox']
-            else:
-                # Assume detection format: [x1, y1, x2, y2, conf, class]
-                x1, y1, x2, y2 = detection[:4]
+        # Extract person crop
+        person_crop = self._extract_person_crop(frame, person_bbox)
+        if person_crop is None:
+            return None
+        
+        # Encode the person image
+        person_embedding = self._encode_person_image(person_crop)
+        if person_embedding is None:
+            return None
+        
+        # Compare with all target descriptions
+        best_match = None
+        best_score = confidence_threshold
+        
+        for target_id, target_data in self.target_embeddings_cache.items():
+            target_embedding = target_data['embedding'].to(self.device)
             
-            # Ensure coordinates are integers and within frame bounds
-            x1, y1, x2, y2 = map(int, [x1, y1, x2, y2])
+            # Compute similarity
+            similarity = torch.cosine_similarity(person_embedding, target_embedding).item()
+            
+            if similarity > best_score:
+                best_score = similarity
+                best_match = (target_id, similarity, target_data['description'])
+        
+        if best_match:
+            target_id = best_match[0]
+            self.target_embeddings_cache[target_id]['matches_found'] += 1
+            self.logger.info(f"New person matches target {target_id}: {best_score:.3f}")
+        
+        return best_match
+    
+    def _extract_person_crop(self, frame: np.ndarray, bbox: List[int]) -> Optional[Image.Image]:
+        """Extract person crop from frame given bounding box"""
+        try:
+            x1, y1, x2, y2 = map(int, bbox)
+            
+            # Ensure coordinates are within frame bounds
             h, w = frame.shape[:2]
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x2), min(h, y2)
@@ -67,218 +141,56 @@ class CLIPPersonSelector:
             if person_crop.size > 0:
                 # Convert BGR to RGB and create PIL Image
                 person_crop_rgb = cv2.cvtColor(person_crop, cv2.COLOR_BGR2RGB)
-                pil_image = Image.fromarray(person_crop_rgb)
-                person_crops.append(pil_image)
-            else:
-                self.logger.warning(f"Empty crop detected: {x1}, {y1}, {x2}, {y2}")
-        
-        return person_crops
-    
-    def encode_text_query(self, text_description: str) -> torch.Tensor:
-        """
-        Encode text description using CLIP
-        
-        Args:
-            text_description: Natural language description of the person
+                return Image.fromarray(person_crop_rgb)
             
-        Returns:
-            Encoded text features
-        """
-        # Tokenize and encode text
-        text_tokens = clip.tokenize([text_description]).to(self.device)
-        
-        with torch.no_grad():
-            text_features = self.model.encode_text(text_tokens)
-            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-        
-        return text_features
-    
-    def encode_person_images(self, person_crops: List[Image.Image]) -> torch.Tensor:
-        """
-        Encode person images using CLIP
-        
-        Args:
-            person_crops: List of PIL Images containing person crops
-            
-        Returns:
-            Encoded image features
-        """
-        if not person_crops:
-            return torch.empty(0, 512).to(self.device)
-        
-        # Preprocess images
-        image_tensors = torch.stack([self.preprocess(crop) for crop in person_crops]).to(self.device)
-        
-        with torch.no_grad():
-            image_features = self.model.encode_image(image_tensors)
-            image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        
-        return image_features
-    
-    def compute_similarity_scores(self, text_features: torch.Tensor, 
-                                image_features: torch.Tensor) -> torch.Tensor:
-        """
-        Compute similarity scores between text and image features
-        
-        Args:
-            text_features: Encoded text features
-            image_features: Encoded image features
-            
-        Returns:
-            Similarity scores for each person
-        """
-        # Compute cosine similarity
-        similarity_scores = torch.matmul(text_features, image_features.T)
-        return similarity_scores.squeeze()
-    
-    def select_person_by_text(self, frame: np.ndarray, detections: List[Dict], 
-                            text_description: str, 
-                            confidence_threshold: float = 0.2) -> Optional[Tuple[int, float, Dict]]:
-        """
-        Select person from detections based on text description
-        
-        Args:
-            frame: Input frame (BGR format)
-            detections: List of person detections
-            text_description: Natural language description of target person
-            confidence_threshold: Minimum similarity score threshold
-            
-        Returns:
-            Tuple of (detection_index, similarity_score, detection_dict) or None
-        """
-        if not detections:
-            self.logger.warning("No detections provided")
             return None
-        
-        # Extract person crops
-        person_crops = self.preprocess_detections(frame, detections)
-        
-        if not person_crops:
-            self.logger.warning("No valid person crops extracted")
-            return None
-        
-        # Encode text and images
-        text_features = self.encode_text_query(text_description)
-        image_features = self.encode_person_images(person_crops)
-        
-        # Compute similarities
-        similarity_scores = self.compute_similarity_scores(text_features, image_features)
-        
-        # Find best match
-        best_idx = torch.argmax(similarity_scores).item()
-        best_score = similarity_scores[best_idx].item()
-        
-        self.logger.info(f"Best match: Index {best_idx}, Score: {best_score:.3f}")
-        
-        if best_score >= confidence_threshold:
-            return best_idx, best_score, detections[best_idx]
-        else:
-            self.logger.warning(f"No match above threshold {confidence_threshold}. Best score: {best_score:.3f}")
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting person crop: {e}")
             return None
     
-    def get_multiple_matches(self, frame: np.ndarray, detections: List[Dict], 
-                           text_description: str, 
-                           top_k: int = 3,
-                           confidence_threshold: float = 0.15) -> List[Tuple[int, float, Dict]]:
-        """
-        Get multiple person matches ranked by similarity
-        
-        Args:
-            frame: Input frame (BGR format)
-            detections: List of person detections
-            text_description: Natural language description
-            top_k: Number of top matches to return
-            confidence_threshold: Minimum similarity threshold
+    def _encode_person_image(self, person_image: Image.Image) -> Optional[torch.Tensor]:
+        """Encode a person image using CLIP"""
+        try:
+            # Preprocess image
+            inputs = self.processor(images=person_image, return_tensors="pt").to(self.device)
             
-        Returns:
-            List of tuples (detection_index, similarity_score, detection_dict)
-        """
-        if not detections:
-            return []
-        
-        # Extract person crops
-        person_crops = self.preprocess_detections(frame, detections)
-        
-        if not person_crops:
-            return []
-        
-        # Encode text and images
-        text_features = self.encode_text_query(text_description)
-        image_features = self.encode_person_images(person_crops)
-        
-        # Compute similarities
-        similarity_scores = self.compute_similarity_scores(text_features, image_features)
-        
-        # Get top-k matches
-        top_scores, top_indices = torch.topk(similarity_scores, 
-                                           min(top_k, len(similarity_scores)))
-        
-        results = []
-        for idx, score in zip(top_indices, top_scores):
-            idx_val = idx.item()
-            score_val = score.item()
+            with torch.no_grad():
+                image_features = self.model.get_image_features(**inputs)
+                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
             
-            if score_val >= confidence_threshold:
-                results.append((idx_val, score_val, detections[idx_val]))
-        
-        return results
+            return image_features
+            
+        except Exception as e:
+            self.logger.error(f"Error encoding person image: {e}")
+            return None
     
-    def visualize_matches(self, frame: np.ndarray, matches: List[Tuple[int, float, Dict]], 
-                         text_description: str) -> np.ndarray:
-        """
-        Visualize CLIP matches on the frame
-        
-        Args:
-            frame: Input frame
-            matches: List of matches from get_multiple_matches
-            text_description: Text query used
-            
-        Returns:
-            Frame with visualized matches
-        """
-        vis_frame = frame.copy()
-        
-        # Add text description at top
-        cv2.putText(vis_frame, f"Query: {text_description}", (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]
-        
-        for i, (det_idx, score, detection) in enumerate(matches):
-            color = colors[i % len(colors)]
-            
-            # Extract bbox
-            if 'bbox' in detection:
-                x1, y1, x2, y2 = detection['bbox']
-            else:
-                x1, y1, x2, y2 = detection[:4]
-            
-            x1, y1, x2, y2 = map(int, [x1, y1, x2, y2])
-            
-            # Draw bounding box
-            cv2.rectangle(vis_frame, (x1, y1), (x2, y2), color, 2)
-            
-            # Add score label
-            label = f"#{i+1}: {score:.3f}"
-            cv2.putText(vis_frame, label, (x1, y1-10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-        
-        return vis_frame
+    def get_target_statistics(self) -> Dict:
+        """Get statistics about target matching"""
+        stats = {}
+        for target_id, target_data in self.target_embeddings_cache.items():
+            stats[target_id] = {
+                'description': target_data['description'],
+                'matches_found': target_data['matches_found']
+            }
+        return stats
 
-# Example usage and integration helper functions
-def integrate_clip_with_yolo_reid(yolo_detections: List, frame: np.ndarray, 
-                                text_query: str, clip_selector: CLIPPersonSelector) -> Optional[Dict]:
+# Integration helper functions for new entity identification workflow
+def identify_new_entities(yolo_detections: List, frame: np.ndarray, 
+                         clip_identifier: CLIPPersonIdentifier,
+                         existing_tracked_persons: List[Dict]) -> List[Dict]:
     """
-    Integration helper to use CLIP with existing YOLO ReID pipeline
+    Identify new entities that match target descriptions
+    This is called when new people are detected to check if they match any targets
     
     Args:
         yolo_detections: YOLO detection results
         frame: Current frame
-        text_query: Text description of target person
-        clip_selector: CLIPPersonSelector instance
+        clip_identifier: CLIPPersonIdentifier instance
+        existing_tracked_persons: List of already tracked persons (to avoid duplicates)
         
     Returns:
-        Selected detection dictionary or None
+        List of new entities that match target descriptions
     """
     # Filter for person detections (class 0 in COCO)
     person_detections = []
@@ -291,17 +203,71 @@ def integrate_clip_with_yolo_reid(yolo_detections: List, frame: np.ndarray,
             })
     
     if not person_detections:
-        return None
+        return []
     
-    # Use CLIP to select best matching person
-    result = clip_selector.select_person_by_text(frame, person_detections, text_query)
+    new_entities = []
     
-    if result:
-        det_idx, similarity_score, detection = result
-        return {
-            'detection': detection,
-            'similarity_score': similarity_score,
-            'text_query': text_query
-        }
+    # Check each detected person against target descriptions
+    for i, detection in enumerate(person_detections):
+        bbox = detection['bbox']
+        
+        # Skip if this detection overlaps significantly with existing tracked persons
+        if _overlaps_with_existing(bbox, existing_tracked_persons):
+            continue
+        
+        # Use CLIP to identify if this new person matches any target
+        match_result = clip_identifier.identify_new_person(frame, bbox)
+        
+        if match_result:
+            target_id, similarity_score, description = match_result
+            
+            new_entities.append({
+                'detection_index': i,
+                'detection': detection,
+                'target_id': target_id,
+                'similarity_score': similarity_score,
+                'description': description,
+                'status': 'newly_identified'
+            })
     
-    return None
+    return new_entities
+
+def _overlaps_with_existing(bbox: List[float], existing_tracked_persons: List[Dict], 
+                           iou_threshold: float = 0.3) -> bool:
+    """
+    Check if a bounding box overlaps significantly with existing tracked persons
+    
+    Args:
+        bbox: Bounding box to check [x1, y1, x2, y2]
+        existing_tracked_persons: List of tracked persons with bboxes
+        iou_threshold: IoU threshold for overlap detection
+        
+    Returns:
+        True if bbox overlaps with any existing person
+    """
+    x1, y1, x2, y2 = bbox
+    
+    for person in existing_tracked_persons:
+        if 'bbox' not in person:
+            continue
+            
+        px1, py1, px2, py2 = person['bbox']
+        
+        # Calculate IoU
+        intersection_x1 = max(x1, px1)
+        intersection_y1 = max(y1, py1)
+        intersection_x2 = min(x2, px2)
+        intersection_y2 = min(y2, py2)
+        
+        if intersection_x1 < intersection_x2 and intersection_y1 < intersection_y2:
+            intersection_area = (intersection_x2 - intersection_x1) * (intersection_y2 - intersection_y1)
+            bbox_area = (x2 - x1) * (y2 - y1)
+            person_area = (px2 - px1) * (py2 - py1)
+            union_area = bbox_area + person_area - intersection_area
+            
+            iou = intersection_area / union_area if union_area > 0 else 0
+            
+            if iou > iou_threshold:
+                return True
+    
+    return False
