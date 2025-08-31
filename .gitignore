@@ -1,0 +1,91 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyTorch
+*.pth
+*.pt
+!yolov5n.pt
+!best.pt
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Video files (usually large)
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv
+
+# Large datasets
+dataset/
+data/
+videos/
+
+# Logs
+*.log
+logs/
+log/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Model checkpoints (except specific ones)
+checkpoints/
+*.ckpt
+*.checkpoint
+
+# Output files
+output/
+results/
+*_output.mp4
+*_tracked.mp4
